@@ -59,7 +59,7 @@ names(mutColor)=c(dictType)
 Hp <- ggplot(onco,aes(x=sample,y=gene,fill=mutation)) + 
   geom_tile(width=0.9,height=0.9) +
   scale_fill_manual(values = mutColor, na.value="grey95") +
-  mythm
+  mythm + theme(legend.position="bottom",legend.direction="horizontal")
 
 # draw sample status, the top part
 Tp <- ggplot(subset(onco,!is.na(mutation)), aes(x=sample, fill=mutation)) + geom_bar() +
@@ -76,7 +76,19 @@ Rp <- ggplot(subset(onco,!is.na(mutation)), aes(x=gene, fill=mutation)) + geom_b
   mythm + 
   theme(legend.position="none", rect=element_blank(), axis.line.x=element_line(), axis.text.y=element_blank())
 
+# combine figures
+gT=ggplotGrob(Tp) # grob all elements
+gH=ggplotGrob(Hp)
+gR=ggplotGrob(Rp)
 
+# let the top and heatmap with same width, right and heatmap with same height
+maxWidth=grid::unit.pmax(gT$width[2:5],gH$widths[2:5])
+maxHeight=grid::unit.pmax(gT$heights[2:5],gH$heights[2:5])
+
+gT$widths[2:5] <- gH$widths[2:5] <- as.list(maxWidth)
+gT$heights[2:5] <- gH$heights[2:5] <- as.list(maxHeight)
+
+grid.draw(rbind(gT,cbind(gH,gR)))
 
 
 
