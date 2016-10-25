@@ -57,9 +57,27 @@ names(mutColor)=c(dictType)
 
 # draw heatmap, the body part
 Hp <- ggplot(onco,aes(x=sample,y=gene,fill=mutation)) + 
-  geom_tile(width=0.9,height=0.9) +
+  geom_tile(width=0.9,height=1) +
   scale_fill_manual(values = mutColor, na.value="grey95") +
-  mythm + theme(legend.position="bottom",legend.direction="horizontal")
+  mythm + theme(legend.position="bottom",
+                legend.direction="horizontal", 
+                legend.title=element_blank(),
+                legend.key.size=unit(0.01,"npc"),
+                panel.border=element_rect(size=1.5, color="black"),
+                axis.text.y=element_text(family="serif", face="bold.italic", size=13)
+                )
+
+# extract the legend
+# a function to extract legend
+extract_ggplot2_legend<-function(ggplot_obj) {
+  tmp <- ggplot_gtable(ggplot_build(ggplot_obj))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+}
+
+leg <- extract_ggplot2_legend(Hp)
+Hp <- Hp + theme(legend.position="none") # remove legend after extracted
 
 # draw sample status, the top part
 Tp <- ggplot(subset(onco,!is.na(mutation)), aes(x=sample, fill=mutation)) + geom_bar() +
@@ -76,6 +94,22 @@ Rp <- ggplot(subset(onco,!is.na(mutation)), aes(x=gene, fill=mutation)) + geom_b
   mythm + 
   theme(legend.position="none", rect=element_blank(), axis.line.x=element_line(), axis.text.y=element_blank())
 
+# draw an empty figure, for debuging
+empty <- ggplot() + 
+  geom_point(aes(1,1), colour="white") +
+  theme(                              
+    plot.background = element_blank(), 
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(), 
+    panel.border = element_blank(), 
+    panel.background = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank()
+  )
+
 # combine figures
 gT=ggplotGrob(Tp) # grob all elements
 gH=ggplotGrob(Hp)
@@ -84,14 +118,17 @@ gR=ggplotGrob(Rp)
 # let the top and heatmap with same width, right and heatmap with same height
 maxWidth=grid::unit.pmax(gT$width[2:5],gH$widths[2:5])
 maxHeight=grid::unit.pmax(gT$heights[2:5],gH$heights[2:5])
-
+# let the heights and widths consistent
 gT$widths[2:5] <- gH$widths[2:5] <- as.list(maxWidth)
 gT$heights[2:5] <- gH$heights[2:5] <- as.list(maxHeight)
 
-grid.draw(rbind(gT,cbind(gH,gR)))
+# arrange the grobs
+gC <- arrangeGrob(gT,empty,gH,gR,ncol=2,nrow=2, widths=c(4,1), heights=c(1,4))
+gC <- gtable_add_rows(gC, heights = unit(0.1,"npc"), pos=-1)
+gC <- gtable_add_grob(gC, leg$grobs, t=3, b=3, l=1.5, r=1.5)
 
-
-
+grid.newpage()
+grid.draw(gC)
 
 
 
