@@ -397,3 +397,34 @@ ggplot(tmp.d,aes(x=sample_frac, y=log(ka_ks,base = 2)))+geom_point()+
   geom_vline(xintercept = c(0.01,0.03),lty=2)+geom_hline(yintercept = log(c(0.25,1,4),base = 2),lty=2)+
   geom_text_repel(data=tmp.d%>%filter(Gene_refGene%in%top2),aes(label=Gene_refGene))
 
+
+
+# to make a demo heatmap
+df=data.frame(matrix(sample(0:5,5000,replace = T,prob=c(0.7,0.15,0.1,0.05,0.025,0.025)),100,50))
+colnames(df)=paste0("g",1:ncol(df))
+df$sample=paste0("s",1:nrow(df))
+library(reshape2)
+df1=melt(df,"sample",variable.name = "gene",value.name = "AF")
+df1=subset(df1,AF>0)
+df1$AF=factor(df1$AF,labels = c("a","missense","silent","nonsense","frameshift","nonframeshift"))
+fill_color=c("white","blue","pink","red","orange","green")
+p1=ggplot(df1,aes(x=sample,y=gene,fill=AF))+geom_tile(color="white")+scale_fill_manual(values=fill_color)
+p_mid=p1+list(theme_bw(),theme(axis.text.x=element_text(angle=90,vjust=0.5),legend.position="bottom"))
+
+p_top=ggplot(subset(df1,AF!="a"),aes(x=sample,fill=AF)) + geom_bar()
+p_top=p_top + list(theme_bw(),theme(axis.text.x=element_blank(),axis.title=element_blank(),legend.position="none",axis.ticks.y=element_line(colour="black"),panel.grid=element_blank(),rect=element_blank()))
+
+gt <- ggplotGrob(p_mid)
+gR <- gtable_add_rows(gt, heights=unit(0.2,"npc"), pos=0) # pos=0 means top added, -1 bottom added
+gR <- gtable_add_grob(gR, ggplotGrob(p_top), t = 1, l=3, b=1, r=4)
+grid.newpage()
+grid.draw(gR)
+
+gA=ggplotGrob(p_mid)
+gB=ggplotGrob(p_top)
+maxWidth = grid::unit.pmax(gA$widths[2:5], gB$widths[2:5])
+# assign it the same to all figures
+gA$widths[2:5] <- as.list(maxWidth)
+gB$widths[2:5] <- as.list(maxWidth)
+grid.draw(rbind(gB,gA))
+
