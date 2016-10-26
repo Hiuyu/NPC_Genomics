@@ -1,5 +1,11 @@
 ## demo for heatmap with barplot on top and right panels, 
 ## also called the rainfall plot or oncoplot
+## the basic steps are as follows:
+##    1. create each plots seperately
+##    2. save the legend of one plot as a seperate grob
+##    3. strip the legends from the plots
+##    4. arrange plots by gtable or arrangeGrob 
+##    5. draw the four plots and the legend below or above (or any other) them
 library(ggplot2)
 library(grid)
 library(gridExtra)
@@ -52,33 +58,28 @@ mythm=theme(
   panel.border=element_rect(fill=NA,colour="grey50")
 )
 
+# how to increase the spacing of legend key ?
+legend_theme <- theme(
+  legend.position="bottom",
+  legend.direction="horizontal",
+  legend.text=element_text(size=10),
+  legend.title=element_blank(),
+  legend.key.size=unit(0.4,"cm")
+)
+
 # set manual color
 mutColor=c("lightblue","green","yellow","pink","red")
 names(mutColor)=c(dictType)
 
 # draw heatmap, the body part
 Hp <- ggplot(onco,aes(x=sample,y=gene,fill=mutation)) + 
-  geom_tile(width=0.9,height=1) +
+  geom_tile(width=0.9,height=1,colour="white") +
   scale_fill_manual(values = mutColor, na.value="grey95") +
-  mythm + theme(legend.position="bottom",
-                legend.direction="horizontal", 
-                legend.title=element_blank(),
-                legend.key.size=unit(0.01,"npc"),
-                panel.border=element_rect(size=1.1, color="black"),
-                axis.text.y=element_text(family="serif", face="bold.italic", size=13)
-                )
-
-# extract the legend
-# a function to extract legend
-extract_ggplot2_legend<-function(ggplot_obj) {
-  tmp <- ggplot_gtable(ggplot_build(ggplot_obj))
-  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
-  legend <- tmp$grobs[[leg]]
-  return(legend)
-}
-
-leg <- extract_ggplot2_legend(Hp)
-Hp <- Hp + theme(legend.position="none") # remove legend after extracted
+  mythm + 
+  theme(panel.border=element_rect(size=1, color="black"),
+        axis.text.y=element_text(face="italic", size=11),
+        legend.position="none"
+  )
 
 # draw sample status, the top part
 Tp <- ggplot(subset(onco,!is.na(mutation)), aes(x=sample, fill=mutation)) + geom_bar() +
@@ -86,24 +87,24 @@ Tp <- ggplot(subset(onco,!is.na(mutation)), aes(x=sample, fill=mutation)) + geom
   scale_y_continuous(breaks=c(0,10,30),limits = c(0,30),expand = c(0, 0)) +  # set y axis
   mythm + theme(legend.position="none", 
         rect=element_blank(), 
-        axis.line.y=element_line(size=1.1), 
-        axis.line.x=element_line(size=1.1),
-        axis.ticks.y=element_line(size=1.1,color="black"),
+        axis.line.y=element_line(size=0.8), 
+        axis.line.x=element_line(size=0.5),
+        axis.ticks.y=element_line(size=0.3,color="black"),
         # how to add tick on Y-axis ?
        # axis.ticks.length=unit(1,"cm"),
-        axis.text.y=element_text(family="serif", face="bold", size=13)
+        axis.text.y=element_text(face="plain", size=10)
         )
 
 # draw gene status, the right part 
 # how to add a top y-axis line and tick marker? use secondary axis?
 Rp <- ggplot(subset(onco,!is.na(mutation)), aes(x=gene, fill=mutation)) + geom_bar() +
-  coord_flip() +  # note that the cols order should be reverse
+  coord_flip() +  
   scale_fill_manual(values=mutColor) + # set fill color
   scale_y_continuous(breaks=c(0,10,30),limits = c(0,30),expand = c(0, 0)) +  # set y axis
   mythm + theme(legend.position="none", 
                 rect=element_blank(),
-                axis.line.x=element_blank()
-                axis.text.y=element_blank(),
+                axis.line.x=element_blank(),
+                axis.text.y=element_blank()
                 )
 
 # draw an empty figure, for debuging
@@ -123,8 +124,12 @@ empty <- ggplot() +
   )
 
 # combine figures
-gT=ggplotGrob(Tp) # grob all elements
-gH=ggplotGrob(Hp)
+# grob all elements
+#leg <- extract_ggplot2_legend(Hp)
+gH=ggplotGrob(Hp + legend_theme) # grob the heatmap part, main part of the oncoplot
+leg=gH$grobs[which(sapply(gH$grobs,function(x) x$name) == "guide-box")] # extract the legend grob
+gH=ggplotGrob(Hp) # grob it again
+gT=ggplotGrob(Tp) 
 gR=ggplotGrob(Rp)
 
 # let the top and heatmap with same width, right and heatmap with same height
@@ -135,9 +140,10 @@ gT$widths[2:5] <- gH$widths[2:5] <- as.list(maxWidth)
 gT$heights[2:5] <- gH$heights[2:5] <- as.list(maxHeight)
 
 # arrange the grobs
-gC <- arrangeGrob(gT,empty,gH,gR,ncol=2,nrow=2, widths=c(4,1), heights=c(1,4))
+# how to arrange the heights sizes ? 
+gC <- arrangeGrob(gT,empty,gH,gR,ncol=2,nrow=2, widths=c(7,1), heights=c(1,4))
 gC <- gtable_add_rows(gC, heights = unit(0.1,"npc"), pos=-1)
-gC <- gtable_add_grob(gC, leg$grobs, t=3, b=3, l=1.5, r=1.5)
+gC <- gtable_add_grob(gC, leg, t=3, b=3, l=1.5, r=1.5)
 
 grid.newpage()
 grid.draw(gC)
