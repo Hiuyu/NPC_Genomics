@@ -29,4 +29,12 @@ Once finished installing these packages, enjoy my journal of plotting !
 The oncoplot is a rainfall like combination of several figures, including heatmap and barplot. The main part is a heatmap to show the occurence of mutations and their types for each gene on each sample. the top and the right(left) are the marginal barplot for sample and gene, respectively.
 
 One Nature published example is like this:
+
 ![image](https://github.com/Hiuyu/omics_scripts/blob/oncoplot/oncoplot/example_hope_to_plot.jpg?raw=true)
+
+
+### 2. lolliplot
+
+
+
+
