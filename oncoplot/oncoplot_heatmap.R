@@ -31,12 +31,13 @@ onco$mutation[onco$mutation==0]=NA # remove non-mutation rows
 onco$mutation=factor(onco$mutation,labels = c(dictType)) # assign label
 
 ## how to decide gene order ?
+# or just provide a pre-sort gene list?
 
 
 
-
-## how to decide sample order ?
-
+## how to sort sample order ?
+# or just provide a pre-sort sample list?
+# or sort by frequency ?
 
 
 
@@ -63,7 +64,7 @@ Hp <- ggplot(onco,aes(x=sample,y=gene,fill=mutation)) +
                 legend.direction="horizontal", 
                 legend.title=element_blank(),
                 legend.key.size=unit(0.01,"npc"),
-                panel.border=element_rect(size=1.5, color="black"),
+                panel.border=element_rect(size=1.1, color="black"),
                 axis.text.y=element_text(family="serif", face="bold.italic", size=13)
                 )
 
@@ -83,16 +84,27 @@ Hp <- Hp + theme(legend.position="none") # remove legend after extracted
 Tp <- ggplot(subset(onco,!is.na(mutation)), aes(x=sample, fill=mutation)) + geom_bar() +
   scale_fill_manual(values=mutColor) + # set fill color
   scale_y_continuous(breaks=c(0,10,30),limits = c(0,30),expand = c(0, 0)) +  # set y axis
-  mythm + 
-  theme(legend.position="none", rect=element_blank(), axis.line.y=element_line(), axis.line.x=element_line())
+  mythm + theme(legend.position="none", 
+        rect=element_blank(), 
+        axis.line.y=element_line(size=1.1), 
+        axis.line.x=element_line(size=1.1),
+        axis.ticks.y=element_line(size=1.1,color="black"),
+        # how to add tick on Y-axis ?
+       # axis.ticks.length=unit(1,"cm"),
+        axis.text.y=element_text(family="serif", face="bold", size=13)
+        )
 
 # draw gene status, the right part 
+# how to add a top y-axis line and tick marker? use secondary axis?
 Rp <- ggplot(subset(onco,!is.na(mutation)), aes(x=gene, fill=mutation)) + geom_bar() +
   coord_flip() +  # note that the cols order should be reverse
   scale_fill_manual(values=mutColor) + # set fill color
   scale_y_continuous(breaks=c(0,10,30),limits = c(0,30),expand = c(0, 0)) +  # set y axis
-  mythm + 
-  theme(legend.position="none", rect=element_blank(), axis.line.x=element_line(), axis.text.y=element_blank())
+  mythm + theme(legend.position="none", 
+                rect=element_blank(),
+                axis.line.x=element_blank()
+                axis.text.y=element_blank(),
+                )
 
 # draw an empty figure, for debuging
 empty <- ggplot() + 
