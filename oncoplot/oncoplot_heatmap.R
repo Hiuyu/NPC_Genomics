@@ -6,6 +6,15 @@
 ##    3. strip the legends from the plots
 ##    4. arrange plots by gtable or arrangeGrob 
 ##    5. draw the four plots and the legend below or above (or any other) them
+
+## 2016-10-26
+## problems remained to resolved:
+##    1. increase spacing between legend keys
+##    2. orientation of gene names
+##    3. let y-axis of the right plot show on top
+##    4. how to add a left vertical plot ?
+##
+
 library(ggplot2)
 library(grid)
 library(gridExtra)
@@ -141,13 +150,15 @@ gT$heights[2:5] <- gH$heights[2:5] <- as.list(maxHeight)
 
 # arrange the grobs
 # how to arrange the heights sizes ? 
-gC <- arrangeGrob(gT,empty,gH,gR,ncol=2,nrow=2, widths=c(7,1), heights=c(1,4))
+gC <- arrangeGrob(gT,empty,gH,gR,ncol=2,nrow=2, widths=c(7,1), heights=c(1,7))
 gC <- gtable_add_rows(gC, heights = unit(0.1,"npc"), pos=-1)
 gC <- gtable_add_grob(gC, leg, t=3, b=3, l=1.5, r=1.5)
 
+
+jpeg("C:/Users/LibJu/workspace/Github-project_scripts-repository/NPC_Genomics/oncoplot/demo_1.jpeg",width=600,height=800)
 grid.newpage()
 grid.draw(gC)
-
+dev.off()
 
 
 
