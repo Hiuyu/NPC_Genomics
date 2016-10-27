@@ -71,19 +71,19 @@ mythm=theme(
 legend_theme <- theme(
   legend.position="bottom",
   legend.direction="horizontal",
-  legend.text=element_text(size=10),
+  legend.text=element_text(size=11),
   legend.title=element_blank(),
-  legend.key.size=unit(0.4,"cm")
+  legend.key.height=unit(0.4,"cm"),
+  legend.key.width=unit(0.3,"cm")
 )
 
 # set manual color
-mutColor=c("lightblue","green","yellow","pink","red")
-names(mutColor)=c(dictType)
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 # draw heatmap, the body part
 Hp <- ggplot(onco,aes(x=sample,y=gene,fill=mutation)) + 
-  geom_tile(width=0.9,height=1,colour="white") +
-  scale_fill_manual(values = mutColor, na.value="grey95") +
+  geom_tile(width=1,height=1.2,colour="grey70") +
+  scale_fill_manual(values = cbPalette, na.value="white") +
   mythm + 
   theme(panel.border=element_rect(size=1, color="black"),
         axis.text.y=element_text(face="italic", size=11),
@@ -92,8 +92,8 @@ Hp <- ggplot(onco,aes(x=sample,y=gene,fill=mutation)) +
 
 # draw sample status, the top part
 Tp <- ggplot(subset(onco,!is.na(mutation)), aes(x=sample, fill=mutation)) + geom_bar() +
-  scale_fill_manual(values=mutColor) + # set fill color
-  scale_y_continuous(breaks=c(0,10,30),limits = c(0,30),expand = c(0, 0)) +  # set y axis
+  scale_fill_manual(values=cbPalette) + # set fill color
+  scale_y_continuous(breaks=c(0,10,30),expand = c(0, 0)) +  # set y axis
   mythm + theme(legend.position="none", 
         rect=element_blank(), 
         axis.line.y=element_line(size=0.8), 
@@ -108,7 +108,7 @@ Tp <- ggplot(subset(onco,!is.na(mutation)), aes(x=sample, fill=mutation)) + geom
 # how to add a top y-axis line and tick marker? use secondary axis?
 Rp <- ggplot(subset(onco,!is.na(mutation)), aes(x=gene, fill=mutation)) + geom_bar() +
   coord_flip() +  
-  scale_fill_manual(values=mutColor) + # set fill color
+  scale_fill_manual(values=cbPalette) + # set fill color
   scale_y_continuous(breaks=c(0,10,30),limits = c(0,30),expand = c(0, 0)) +  # set y axis
   mythm + theme(legend.position="none", 
                 rect=element_blank(),
@@ -135,7 +135,7 @@ empty <- ggplot() +
 # combine figures
 # grob all elements
 #leg <- extract_ggplot2_legend(Hp)
-gH=ggplotGrob(Hp + legend_theme) # grob the heatmap part, main part of the oncoplot
+gH=ggplotGrob(Hp + legend_theme + theme(legend.text=)) # grob the heatmap part, main part of the oncoplot
 leg=gH$grobs[which(sapply(gH$grobs,function(x) x$name) == "guide-box")] # extract the legend grob
 gH=ggplotGrob(Hp) # grob it again
 gT=ggplotGrob(Tp) 
@@ -151,7 +151,7 @@ gT$heights[2:5] <- gH$heights[2:5] <- as.list(maxHeight)
 # arrange the grobs
 # how to arrange the heights sizes ? 
 gC <- arrangeGrob(gT,empty,gH,gR,ncol=2,nrow=2, widths=c(7,1), heights=c(1,7))
-gC <- gtable_add_rows(gC, heights = unit(0.1,"npc"), pos=-1)
+gC <- gtable_add_rows(gC, heights = unit(0,"line"), pos=-1)
 gC <- gtable_add_grob(gC, leg, t=3, b=3, l=1.5, r=1.5)
 
 
