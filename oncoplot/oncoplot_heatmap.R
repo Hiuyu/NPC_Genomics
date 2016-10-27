@@ -13,7 +13,11 @@
 ##    2. orientation of gene names
 ##    3. let y-axis of the right plot show on top
 ##    4. how to add a left vertical plot ?
-##
+##    
+## 2016-10-28
+## solution to problem 3 and 4:
+##    use scale_y_reverse() to make the Y axis reverse. 
+
 
 library(ggplot2)
 library(grid)
