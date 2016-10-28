@@ -51,14 +51,49 @@ onco$mutation=factor(onco$mutation,labels = c(dictType)) # assign label
 
 ## how to decide gene order ?
 # or just provide a pre-sort gene list?
-
-
+oncoplot_gene_order = function() {
+  order_gene = onco %>% 
+    filter(!is.na(mutation)) %>% 
+    group_by(gene) %>% 
+    summarise(n=n()) %>% 
+    arrange(-n) %>% 
+    select(gene)
+  return(as.character(as.data.frame(order_gene)[,1]))
+}
 
 ## how to sort sample order ?
 # or just provide a pre-sort sample list?
 # or sort by frequency ?
+oncoplot_sample_order = function(gene_order, weight, is_decreasing=FALSE) {
+  if(missing(weight)){
+    weight=c(0.2,0.3,0.1,0.3,0.2) # a toy set of weight
+    names(weight)=levels(onco$mutation)
+  }
+  gene.value=length(gene_order):1
+  names(gene.value)=gene_order
+  sample_list = unique(onco$sample) # get sample list
+  # compute score for each sample
+  sample_score = sapply(sample_list, function(s){
+    tmp = onco %>%
+      filter(sample==s & !is.na(mutation)) %>%
+      mutate(m.score=weight[mutation], 
+             g.score=gene.value[gene], 
+             score=m.score * g.score
+      )
+    score = sum(tmp$score)
+    return(score)
+  })
+  names(sample_score) = sample_list
+  return(names(sort(sample_score, decreasing = is_decreasing)))
+}
 
+# perform sorting
+gene_order = oncoplot_gene_order()
+sample_order = oncoplot_sample_order(gene_order)
 
+# reorder onco.
+onco$sample = factor(onco$sample, levels = rev(sample_order))
+onco$gene = factor(onco$gene, levels = rev(gene_order)) # to make high order on top of heatmap
 
 # set custom theme()
 mythm=theme(
@@ -82,7 +117,7 @@ legend_theme <- theme(
 )
 
 # set manual color
-cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+cbPalette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 # draw heatmap, the body part
 Hp <- ggplot(onco,aes(x=sample,y=gene,fill=mutation)) + 
