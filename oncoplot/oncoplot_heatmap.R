@@ -23,8 +23,31 @@
 ##    2. write a convert function to recode the mutation type given a dictionary
 ##    3. write a function to generate analysis-ready data (onco): make_oncoMatrix()
 ##    4. if there are more than one mutation in a gene in the same sample, assign this gene a new category name "multi-hit".
+## 2016-10-31
+## Fixed some bugs and add new arguments
+##    1. allow to choose whether to include silent or unknown mutation
+##    2. fixed a bug that make the sample order not correct.
+##    3. allow to input presorted sample order and gene order. could be a subset of genes or samples which are of interest to plot only.
+##    4. allow removed samples with no mutation in genes included, when plotting the heatmap.
+## 2016-11-01
+## Fixed bugs and add new features
+##    1. if included subsets of genes, the top bar will still count mutations on all genes genes.
+##    2. if included subsets of samples, no genes were dropped and the top 30 were included by default
+##    3. add the left plot for mutsig log(P) or pathway assignment, by argument: gene.annotation.plot. required gene column
+##    4. allow to add optional sample annotation informations by argument: sample.annotation.plot. required sample column
 
-oncoplot <- function(data){ # just for test
+oncoplot <- function(data, # main data, a data.frame
+                     gene.annotation.plot, # topleft plot ggplot2 object
+                     sample.annotation.plot, # bottom plot
+                     included.gene.list, included.sample.list, 
+                     is.sort.gene = TRUE,
+                     is.sort.sample = TRUE,
+                     include.silent = TRUE,
+                     gene.frac.threshold = 0.03,
+                     gene.n.threshold = 5,
+                     include.gene.n = 30, #  top 30 to included
+                     is.drop.gene = TRUE,
+                     include.unknown = FALSE){ # just for test
 
 require(ggplot2)
 require(grid)
@@ -41,19 +64,43 @@ dictType=c("missense",
            "non-frameshift",
            "multi-hit"
            )
-names(dictType)=1:5
+names(dictType)=1:6
 # define the dictionary for annovar type mutation category
 dict.annovar.ExonicFunc = c(
   "nonsynonymous_SNV" = "missense",
   "synonymous_SNV"  = "silent",       
   "stopgain" = "nonsense",
   "stoploss" = "nonsense",
-  "unknown" = NA,
+  "unknown" = "unknown",
   "frameshift_deletion" = "frameshift",
   "frameshift_insertion" = "frameshift",
   "nonframeshift_deletion" = "non-frameshift",
   "nonframeshift_insertion" = "non-frameshift"
 )
+
+# set custom theme()
+mythm=theme(
+  axis.title.y = element_blank(),
+  axis.title.x = element_blank(),
+  axis.text.x=element_blank(),
+  axis.ticks=element_blank(),
+  panel.grid=element_blank(),
+  panel.background=element_rect(fill="white",colour = NA),
+  panel.border=element_rect(fill=NA,colour="grey50")
+)
+
+# how to increase the spacing of legend key ?
+legend_theme <- theme(
+  legend.position="bottom",
+  legend.direction="horizontal",
+  legend.text=element_text(size=11),
+  legend.title=element_blank(),
+  legend.key.height=unit(0.4,"cm"),
+  legend.key.width=unit(0.3,"cm")
+)
+
+# set manual color
+cbPalette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 ## function to convert mutation for a given dictonary
 data$mutation = dict.annovar.ExonicFunc[data$mutation]
@@ -82,7 +129,17 @@ make_oncoMatrix <- function(data = data){
   return(onco)
 }
 
+## remove unknown and silent or not ?
+if ( ! include.unknown) {
+  data = data %>% filter(mutation != "unknown")
+}
+if ( ! include.silent) {
+  data = data %>% filter(mutation != "synonymous_SNV")
+}
+
+## convert to oncoMatrix
 onco = make_oncoMatrix(data)
+
 
 ## how to decide gene order ?
 # or just provide a pre-sort gene list?
@@ -102,12 +159,19 @@ oncoplot_gene_order = function(n_threshold ,f_threshold) {
   if(missing(n_threshold)){
     n_threshold = 5
   }
+  # if samples size <= 5, do not drop genes
+  if(length(unique(onco$sample)) < 6) {
+    f_threshold = 0
+    n_threshold = 0
+  }
   # select only subset of genes
-  order_gene_ocur = order_gene %>% 
-    filter(n >= n_threshold & f >= f_threshold) %>% # any of the threshold passed
-    arrange(-f) %>%
-    select(gene) 
-  return(as.character(order_gene_ocur$gene))
+  if(is.drop.gene) { # select only top genes
+    order_gene = order_gene %>%
+      filter(n >= n_threshold & f >= f_threshold) %>% # any of the threshold passed
+      select(gene)
+  }
+  gene_included = as.character(order_gene$gene)
+  return(gene_included)
 }
 
 ## how to sort sample order ?
@@ -135,43 +199,57 @@ oncoplot_sample_order = function(gene_order, weight) {
   return(sample_score$sample)
 }
 
-# perform sorting
-gene_order = oncoplot_gene_order(f_threshold = 0.02)
-sample_order = oncoplot_sample_order(gene_order)
+## perform subsetting if defined included gene or sample sets
+if (!missing(included.sample.list)) {
+  onco = onco %>% filter(sample %in% included.sample.list)
+}
+
+## counting sample mutations for top barplot
+tmp.z = with(onco,table(sample,mutation))
+sample.mutation.count = as.data.frame(tmp.z)  # tabulate sample vs mutation 
+
+
+if (!missing(included.gene.list)) {
+  onco = onco %>% filter(gene %in% included.gene.list)
+  is.drop.gene = FALSE # if defined included subset, we should not drop genes anymore
+}
+
+
+## perform sorting if defined is.sort.gene or is.sort.gene
+gene_order = NULL
+sample_order = NULL
+# define the order of gene
+if (is.sort.gene) {
+  if (is.drop.gene) {
+    gene_order = oncoplot_gene_order(f_threshold = gene.frac.threshold, n_threshold = gene.n.threshold)
+  } else {
+    gene_order = oncoplot_gene_order(f_threshold = 0, n_threshold = 0)
+  }
+} else {
+  gene_order = included.gene.list
+}
+# define the order of sample
+if (is.sort.sample) {
+  sample_order = oncoplot_sample_order(gene_order)
+} else {
+  sample_order = included.sample.list
+}
 
 # reorder and subset onco.
+# arrange sample order by factor levels
 onco$sample = factor(onco$sample, levels = sample_order)
-onco.old = onco
-onco = onco.old %>% filter(gene %in% gene_order)
+sample.mutation.count$sample = factor(sample.mutation.count$sample, levels=sample_order)
+
+# arrange gene order
 onco$gene = factor(onco$gene, levels = rev(gene_order)) # to make high order on top of heatmap
 
-# set custom theme()
-mythm=theme(
-  axis.title.y = element_blank(),
-  axis.title.x = element_blank(),
-  axis.text.x=element_blank(),
-  axis.ticks=element_blank(),
-  panel.grid=element_blank(),
-  panel.background=element_rect(fill="white",colour = NA),
-  panel.border=element_rect(fill=NA,colour="grey50")
-)
-
-# how to increase the spacing of legend key ?
-legend_theme <- theme(
-  legend.position="bottom",
-  legend.direction="horizontal",
-  legend.text=element_text(size=11),
-  legend.title=element_blank(),
-  legend.key.height=unit(0.4,"cm"),
-  legend.key.width=unit(0.3,"cm")
-)
-
-# set manual color
-cbPalette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+## subsetting onco if only subset of genes or samples are included
+onco = onco %>% filter(!is.na(sample)) %>% filter(!is.na(gene))
+sample.mutation.count = sample.mutation.count %>% filter(!is.na(sample))
 
 # draw heatmap, the body part
 Hp <- ggplot(onco, aes(x=sample,y=gene,fill=mutation)) + 
-  geom_tile(width=1,height=1.2,colour="grey70") +
+  geom_tile(width=1,height=1,colour="grey70") +
   scale_fill_manual(values = cbPalette, na.value="white") +
   mythm + 
   theme(panel.border=element_rect(size=1, color="black"),
@@ -180,7 +258,8 @@ Hp <- ggplot(onco, aes(x=sample,y=gene,fill=mutation)) +
   )
 
 # draw sample status, the top part
-Tp <- ggplot(subset(onco.old,!is.na(mutation)), aes(x=sample, fill=mutation)) + geom_bar() +
+Tp <- ggplot(sample.mutation.count, aes(x=sample, y=Freq,fill=mutation)) + 
+  geom_bar(stat="identity") +
   scale_fill_manual(values=cbPalette) + # set fill color
   scale_y_continuous(breaks=seq(0,5000,500),expand = c(0, 0)) +  # set y axis
   mythm + theme(legend.position="none", 
@@ -206,6 +285,7 @@ Rp <- ggplot(subset(onco,!is.na(mutation)), aes(x=gene, fill=mutation)) + geom_b
                 axis.text.x=element_text(size=10),
                 axis.line.x=element_line(size=0.8)
                 )
+
 
 # draw an empty figure, for debuging
 empty <- ggplot() + 
@@ -234,16 +314,47 @@ gR=ggplotGrob(Rp)
 
 # let the top and heatmap with same width, right and heatmap with same height
 maxWidth=grid::unit.pmax(gT$width[2:5],gH$widths[2:5])
-maxHeight=grid::unit.pmax(gT$heights[2:5],gH$heights[2:5])
+maxHeight=grid::unit.pmax(gR$heights[2:5],gH$heights[2:5])
 # let the heights and widths consistent
 gT$widths[2:5] <- gH$widths[2:5] <- as.list(maxWidth)
-gT$heights[2:5] <- gH$heights[2:5] <- as.list(maxHeight)
+gR$heights[2:5] <- gH$heights[2:5] <- as.list(maxHeight)
 
 # arrange the grobs
 # how to arrange the heights sizes ? 
 gC <- arrangeGrob(gT,empty,gH,gR,ncol=2,nrow=2, widths=c(7,1), heights=c(1,7))
-gC <- gtable_add_rows(gC, heights = unit(3,"line"), pos=-1)
-gC <- gtable_add_grob(gC, leg, t=3, b=3, l=1, r=1)
+gC <- gtable_add_rows(gC, heights = unit(3,"line"), pos=0)
+gC <- gtable_add_grob(gC, leg, t=1, b=1, l=1, r=1)
+
+
+#### if there are additional plots, add it to the left and the bottom
+if(!missing(gene.annotation.plot)) {
+  ## arrange the genes of the left part plot 
+  tmp.df = gene.annotation.plot$data 
+  tmp.df = gene.annotation.plot$data %>% 
+    filter(gene %in% gene_order)
+  tmp.gene = unique(tmp.df$gene)
+  stopifnot(all(tmp.gene %in% gene_order)) # if not all genes in both data
+  tmp.df$gene = factor(tmp.df$gene, levels = rev(gene_order))
+  gene.annotation.plot$data = tmp.df # updated new plot data
+  # add its grob to the combined plot
+  gL = ggplotGrob(gene.annotation.plot + ylab("-log(q-value)") + mythm + 
+                    theme(legend.position="none", 
+                          rect=element_blank(),
+                          axis.line.x=element_line(size=0.5),
+                          axis.text.y=element_blank(),
+                          axis.text.x=element_text(size=10),
+                          axis.line.y=element_blank(),
+                          axis.title.x=element_text(size=10)
+                    )
+  )
+  gL$heights[2:5] <- gH$heights[2:5]
+  gC <- gtable_add_cols(gC, widths = unit(1,"null"), pos=0)
+  gC <- gtable_add_grob(gC, gL, t=3, b=3, l=1, r=1)  
+}
+
+
+## arrange the sample of the bottom part ploe
+
 
 
 #jpeg("oncoplot.jpeg",width=1200,height=2000)
@@ -251,6 +362,11 @@ grid.newpage()
 grid.draw(gC)
 #dev.off()
 
+return(list(sample_order = sample_order,
+            gene_order = gene_order,
+            plot.object = gC
+            )
+       )
 }
 
 
