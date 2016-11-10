@@ -35,10 +35,15 @@
 ##    2. if included subsets of samples, no genes were dropped and the top 30 were included by default
 ##    3. add the left plot for mutsig log(P) or pathway assignment, by argument: gene.annotation.plot. required gene column
 ##    4. allow to add optional sample annotation informations by argument: sample.annotation.plot. required sample column
+## 2016-11-05
+## add new argument
+##    1. add sample annotations below the heatmap, with the legend on the bottomright cell. 
+##    2. The argument sample.annotation.table is a data.frame with columns: sample, annotation1, annotation2, .....
+##
 
 oncoplot <- function(data, # main data, a data.frame
                      gene.annotation.plot, # topleft plot ggplot2 object
-                     sample.annotation.plot, # bottom plot
+                     sample.annotation.table, # bottom plot for sample annotation, a data.frame
                      included.gene.list, included.sample.list, 
                      is.sort.gene = TRUE,
                      is.sort.sample = TRUE,
@@ -75,7 +80,8 @@ dict.annovar.ExonicFunc = c(
   "frameshift_deletion" = "frameshift",
   "frameshift_insertion" = "frameshift",
   "nonframeshift_deletion" = "non-frameshift",
-  "nonframeshift_insertion" = "non-frameshift"
+  "nonframeshift_insertion" = "non-frameshift",
+  "non-exonic" = NA
 )
 
 # set custom theme()
@@ -202,6 +208,8 @@ oncoplot_sample_order = function(gene_order, weight) {
 ## perform subsetting if defined included gene or sample sets
 if (!missing(included.sample.list)) {
   onco = onco %>% filter(sample %in% included.sample.list)
+}else{
+  included.sample.list = unique(onco$sample)
 }
 
 ## counting sample mutations for top barplot
@@ -212,6 +220,8 @@ sample.mutation.count = as.data.frame(tmp.z)  # tabulate sample vs mutation
 if (!missing(included.gene.list)) {
   onco = onco %>% filter(gene %in% included.gene.list)
   is.drop.gene = FALSE # if defined included subset, we should not drop genes anymore
+}else{
+  included.gene.list = unique(onco$gene)
 }
 
 
@@ -226,6 +236,7 @@ if (is.sort.gene) {
     gene_order = oncoplot_gene_order(f_threshold = 0, n_threshold = 0)
   }
 } else {
+  
   gene_order = included.gene.list
 }
 # define the order of sample
@@ -353,9 +364,50 @@ if(!missing(gene.annotation.plot)) {
 }
 
 
-## arrange the sample of the bottom part ploe
-
-
+## arrange the sample of the bottom part plot
+if(!missing(sample.annotation.table)) {
+  if(class(sample.annotation.table) == "matrix"){
+    sample.annotation.table = as.data.frame(sample.annotation.table)
+  }
+  # check whether the sample.annotation.table has the sample column
+  if(!any(colnames(sample.annotation.table) %in% "sample")){
+    stop("the sample.annotation.table argument requires 'sample' column")
+  }
+  # check whether the samples in sample.annotation.table contains the sample_order
+  if(!all(sample_order %in% sample.annotation.table$sample)){
+    stop("the sample.annotation.table should cover all samples of the mutation data")
+  }
+  tmp.sa = sample.annotation.table %>% filter(sample %in% sample_order)
+  tmp.sa$sample = factor(tmp.sa$sample, levels=sample_order)
+  # iteratively add sample annotation
+  annot.title = colnames(tmp.sa)[colnames(tmp.sa) != "sample"]
+  for(i in 1:length(annot.title)) {
+    tmp.sa.df = melt(tmp.sa[,c("sample",annot.title[i])], id.vars = "sample", variable.name = "annotation", value.name = "value")
+    # heatmap type plot
+    Bp <- ggplot(tmp.sa.df, aes(x=sample, y = annotation, fill=value)) +
+      geom_tile(width=1,height=1,colour="grey70") +
+      scale_fill_manual(values = cbPalette, na.value="white") +
+      mythm + 
+      guides(fill=guide_legend(
+        title=annot.title[i], 
+        keyheight = unit(0.4,"cm"),
+        keywidth = unit(0.3,"cm"),
+        title.position="left",
+        direction="horizontal",
+        ncol=3,byrow=T
+      )) +
+      theme(panel.border=element_rect(size=1, color="black"),
+            axis.text.y=element_text(face="bold", size=11)
+      )
+    gB=ggplotGrob(Bp) # grob the heatmap part, main part of the oncoplot
+    legB=gB$grobs[which(sapply(gB$grobs,function(x) x$name) == "guide-box")] # extract the legend grob
+    gB=ggplotGrob(Bp + guides(fill=FALSE)) # grob it again
+    gB$widths[2:5] <- gH$widths[2:5]
+    gC <- gtable_add_rows(gC, heights = unit(1,"null"), pos=-1)
+    gC <- gtable_add_grob(gC, gB, t=3+i, b=3+i, l=2, r=2) # add plot
+    gC <- gtable_add_grob(gC,legB, t=3+i, b=3+i,l=3, r=3)
+  }
+}
 
 #jpeg("oncoplot.jpeg",width=1200,height=2000)
 grid.newpage()
@@ -364,7 +416,7 @@ grid.draw(gC)
 
 return(list(sample_order = sample_order,
             gene_order = gene_order,
-            plot.object = gC
+            gtable.object = gC
             )
        )
 }
