@@ -52,6 +52,7 @@ oncoplot <- function(data, # main data, a data.frame
                      gene.n.threshold = 5,
                      include.gene.n = 30, #  top 30 to included
                      is.drop.gene = TRUE,
+                     is.drop.sample = TRUE,
                      include.unknown = FALSE){ # just for test
 
 require(ggplot2)
@@ -140,7 +141,7 @@ if ( ! include.unknown) {
   data = data %>% filter(mutation != "unknown")
 }
 if ( ! include.silent) {
-  data = data %>% filter(mutation != "synonymous_SNV")
+  data = data %>% filter(mutation != "silent")
 }
 
 ## convert to oncoMatrix
